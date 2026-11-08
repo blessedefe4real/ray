@@ -294,6 +294,28 @@ def test_wait(call_ray_start_shared):
             ray.wait(["blabla"])
 
 
+def test_wait_fetch_local(call_ray_start_shared, monkeypatch):
+    """Tests that the client passes `fetch_local` through to the server's
+    `ray.wait`."""
+    fetch_local_args = []
+    real_wait = ray_client_server.ray.wait
+
+    def wait_spy(*args, **kwargs):
+        fetch_local_args.append(kwargs.get("fetch_local"))
+        return real_wait(*args, **kwargs)
+
+    with ray_start_client_server_for_address(call_ray_start_shared) as ray:
+        # The client server runs in this process and calls `ray.wait`.
+        monkeypatch.setattr(ray_client_server.ray, "wait", wait_spy)
+        objectref = ray.put("hello world")
+        ready, _ = ray.wait([objectref])
+        assert ready == [objectref]
+        ready, _ = ray.wait([objectref], fetch_local=False)
+        assert ready == [objectref]
+
+    assert fetch_local_args == [True, False]
+
+
 def test_remote_functions(call_ray_start_shared):
     with ray_start_client_server_for_address(call_ray_start_shared) as ray:
         SignalActor = create_remote_signal_actor(ray)

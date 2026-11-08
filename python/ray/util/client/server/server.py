@@ -572,12 +572,16 @@ class RayletServicer(ray_client_pb2_grpc.RayletDriverServicer):
             object_refs.append(self.object_refs[request.client_id][rid])
         num_returns = request.num_returns
         timeout = request.timeout
+        # Requests from clients that don't set `fetch_local` keep the default of
+        # `ray.wait`.
+        fetch_local = request.fetch_local if request.HasField("fetch_local") else True
         try:
             with disable_client_hook():
                 ready_object_refs, remaining_object_refs = ray.wait(
                     object_refs,
                     num_returns=num_returns,
                     timeout=timeout if timeout != -1 else None,
+                    fetch_local=fetch_local,
                 )
         except Exception as e:
             # TODO(ameer): improve exception messages.
